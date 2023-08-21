@@ -10,7 +10,7 @@ jobs:
         - run:
             name: npm install
             working_directory: ./frontend
-            command: npm ci
+            command: npm install
         - persist_to_workspace:
             root: .
             paths:
@@ -24,7 +24,7 @@ jobs:
         - run:
             name: npm install
             working_directory: ./backend
-            command: npm ci
+            command: npm install
         - persist_to_workspace:
             root: .
             paths:
