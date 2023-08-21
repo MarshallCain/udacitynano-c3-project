@@ -78,6 +78,30 @@ jobs:
           working_directory: ./backend
           command: npm run test
 
+  scan-frontend:
+    docker:
+      - image: circleci/node:13.8.0
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+      - run:
+          name: Check Frontend vulnerabilities
+          working_directory: ./frontend
+          command: npm audit --audit-level=critical
+
+  scan-backend:
+    docker:
+      - image: circleci/node:13.8.0
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+      - run:
+          name: Check Backend vulnerabilities
+          working_directory: ./backend
+          command: npm audit --audit-level=critical
+
 workflows:
   default:
     jobs:
@@ -95,3 +119,10 @@ workflows:
       - test-backend:
           requires:
             - build-backend
+      - scan-frontend:
+          requires:
+            - build-frontend
+      - scan-backend:
+          requires:
+            - build-backend
+
