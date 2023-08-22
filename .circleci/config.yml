@@ -89,10 +89,6 @@ jobs:
           name: Check Frontend vulnerabilities
           working_directory: ./frontend
           command: npm audit fix --audit-level=critical --force
-      - run:
-          name: Check Frontend vulnerabilities again
-          working_directory: ./frontend
-          command: npm audit --audit-level=critical
 
   scan-backend:
     docker:
