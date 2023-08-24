@@ -29,7 +29,7 @@ commands:
           when: on_fail
           working_directory: ./backend
           command: |
-            MIG_STATUS=$(curl -k https://kvdb.io/3et7Wetpw1giChvRWz9DmG/MIGRATION_STATUS_${CIRCLE_WORKFLOW_ID:0:7})
+            MIG_STATUS=$(curl -k https://kvdb.io/3et7Wetpw1giChvRWz9DmG/MIGRATION_STATUS_<< parameters.circleciworkflow_id >>)
             echo $MIG_STATUS
             if [[ "$MIG_STATUS" == "1" ]]
             then
@@ -91,6 +91,10 @@ jobs:
           name: Back-end build
           working_directory: ./backend
           command: npm run build
+      - persist_to_workspace:
+          root: .
+          paths:
+            - backend/dist
 
   test-frontend:
     docker:
@@ -292,6 +296,34 @@ jobs:
       - revert-migrations:
           circleciworkflow_id: ${CIRCLE_WORKFLOW_ID:0:7}
 
+  deploy-backend:
+    docker:
+      - image: python:3.11-alpine3.17
+    steps:
+      - checkout
+      - add_ssh_keys:
+          fingerprints: ["65:0b:c0:a7:0d:ae:75:54:c4:07:54:7a:74:08:fb:08"]
+      - attach_workspace:
+          at: .
+      - run:
+          name: Install dependencies
+          working_directory: /tmp
+          command: |
+            apk add --update ansible curl rsync openssh nodejs npm
+            ansible --version
+            pip install awscli
+            aws --version
+      - run:
+          name: Deploy backend
+          working_directory: ./.circleci/ansible
+          command: |
+            cat inventory.txt
+            ansible-playbook -i inventory.txt deploy-backend.yml -v
+      - destroy-environment:
+          circleciworkflow_id: ${CIRCLE_WORKFLOW_ID:0:7}
+      - revert-migrations:
+          circleciworkflow_id: ${CIRCLE_WORKFLOW_ID:0:7}
+
 workflows:
   default:
     jobs:
@@ -332,5 +364,8 @@ workflows:
               only:
                 - master
       - deploy-frontend:
+          requires:
+            - run-migrations
+      - deploy-backend:
           requires:
             - run-migrations
