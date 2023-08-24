@@ -349,7 +349,7 @@ jobs:
           working_directory: ./frontend
           command: |
             FRONT_URL="http://udapeople-${CIRCLE_WORKFLOW_ID:0:7}.s3-website-us-east-1.amazonaws.com/#/employees"
-            if curl -s ${FRONT_URL} | grep -q "Welcome"; then return 0; else return 1; fi
+            if curl ${FRONT_URL} | grep -q "Welcome"; then return 1; else return 1; fi
       - destroy-environment:
           circleciworkflow_id: ${CIRCLE_WORKFLOW_ID:0:7}
       - revert-migrations:
