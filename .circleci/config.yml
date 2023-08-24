@@ -18,6 +18,25 @@ commands:
           command: |
             aws s3 rm s3://udapeople-<< parameters.circleciworkflow_id >> --recursive
             aws cloudformation delete-stack --stack-name udapeople-frontend-<< parameters.circleciworkflow_id >>
+  revert-migrations:
+    description: Revert the last migration.
+    parameters:
+      circleciworkflow_id:
+        type: string
+    steps:
+      - run:
+          name: Revert migrations
+          when: on_fail
+          working_directory: ./backend
+          command: |
+            MIG_STATUS=$(curl -k https://kvdb.io/3et7Wetpw1giChvRWz9DmG/MIGRATION_STATUS_$\{CIRCLE_WORKFLOW_ID:0:7\})
+            echo $MIG_STATUS
+            if [[ "$MIG_STATUS" == "1" ]]
+            then
+              pwd
+              ls -la
+              npm run migrations:revert
+            fi
 
 jobs:
 
@@ -156,6 +175,14 @@ jobs:
               --filters "Name=tag:project,Values=udapeople-backend-${CIRCLE_WORKFLOW_ID:0:7}" \
               --output text >> inventory.txt
             cat inventory.txt
+      - run:
+          name: Add backend URL to kvdb
+          command: |
+            BACKEND_IP=$(aws ec2 describe-instances \
+              --query 'Reservations[*].Instances[*].PublicIpAddress' \
+              --filters "Name=tag:project,Values=udapeople-backend-${CIRCLE_WORKFLOW_ID:0:7}" \
+              --output text)
+            curl https://kvdb.io/3et7Wetpw1giChvRWz9DmG/BACKEND_URL -d 'http://$BACKEND_IP:3030'
       - persist_to_workspace:
           root: .
           paths:
@@ -169,7 +196,7 @@ jobs:
     steps:
       - checkout
       - add_ssh_keys:
-          fingerprints: ["76:db:7c:b1:9a:f0:ba:e9:ec:af:f6:56:24:6e:f6:81"]
+          fingerprints: ["65:0b:c0:a7:0d:ae:75:54:c4:07:54:7a:74:08:fb:08"]
       - attach_workspace:
           at: .
       - run:
@@ -189,6 +216,69 @@ jobs:
       - destroy-environment:
           circleciworkflow_id: ${CIRCLE_WORKFLOW_ID:0:7}
 
+  run-migrations:
+    docker:
+      - image: circleci/node:13.8.0
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+      - run:
+          name: Run migrations
+          working_directory: ./backend
+          command: |
+            npm run migrations > migration_status.txt
+      - run:
+          name: Send migration results to kvdb
+          working_directory: ./backend
+          command: |
+            if grep -q "has been executed successfully" migration_status.txt
+            then
+              echo "DB migration successful."
+              curl https://kvdb.io/3et7Wetpw1giChvRWz9DmG/MIGRATION_STATUS_$\{CIRCLE_WORKFLOW_ID:0:7\} -d '1'
+            else
+              echo "DB migration failed, please verify DB setup."
+              curl https://kvdb.io/3et7Wetpw1giChvRWz9DmG/MIGRATION_STATUS_$\{CIRCLE_WORKFLOW_ID:0:7\} -d '0'
+            fi
+            echo "WorkflowID=${CIRCLE_WORKFLOW_ID:0:7}"
+      - destroy-environment:
+          circleciworkflow_id: ${CIRCLE_WORKFLOW_ID:0:7} 
+
+  deploy-frontend:
+    docker:
+      - image: circleci/node:13.8.0
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+      - run:
+          name: Install AWS CLI dependencies
+          working_directory: /tmp
+          command: |
+            sudo apt-get update && sudo apt-get install -yy less
+            curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+            unzip awscliv2.zip
+            sudo ./aws/install
+      - run:
+          name: Rebuild frontend with backend API Url
+          working_directory: ./frontend
+          command: |
+            export API_URL=$(curl -k https://kvdb.io/3et7Wetpw1giChvRWz9DmG/BACKEND_URL)
+            echo "${API_URL}"
+            npm run build
+      - run:
+          name: Deploy frontend objects to S3
+          working_directory: ./frontend
+          command: |
+            aws s3 cp ./dist "s3://udapeople-${CIRCLE_WORKFLOW_ID:0:7}" --recursive
+      - persist_to_workspace:
+          root: .
+          paths:
+            - frontend/dist
+      - destroy-environment:
+          circleciworkflow_id: ${CIRCLE_WORKFLOW_ID:0:7}
+      - revert-migrations:
+          circleciworkflow_id: ${CIRCLE_WORKFLOW_ID:0:7}
 
 workflows:
   default:
@@ -222,4 +312,17 @@ workflows:
       - configure-infrastructure:
           requires:
             - deploy-infrastructure
-
+      - run-migrations:
+          requires:
+            - test-backend
+            - test-frontend
+            - scan-backend
+            - scan-frontend
+            - configure-infrastructure
+          filters:
+            branches:
+              only:
+                - master
+      - deploy-frontend:
+          requires:
+            - run-migrations
