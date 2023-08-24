@@ -3,27 +3,33 @@ version: 2.1
 commands:
   destroy-environment:
     description: Destroy back-end and front-end cloudformation stacks given a workflow ID.
+    parameters:
+      circleciworkflow_id:
+        type: string 
     steps:
       - run:
           name: Destroy backend environment
           when: on_fail
           command: |
-            aws cloudformation delete-stack --stack-name udapeople-backend-${CIRCLE_WORKFLOW_ID:0:7}
+            aws cloudformation delete-stack --stack-name udapeople-backend-<< parameters.circleciworkflow_id >>
       - run:
           name: Destroy frontend environment
           when: on_fail
           command: |
-            aws s3 rm s3://udapeople-${CIRCLE_WORKFLOW_ID:0:7} --recursive
-            aws cloudformation delete-stack --stack-name udapeople-frontend-${CIRCLE_WORKFLOW_ID:0:7}
+            aws s3 rm s3://udapeople-<< parameters.circleciworkflow_id >> --recursive
+            aws cloudformation delete-stack --stack-name udapeople-frontend-<< parameters.circleciworkflow_id >>
   revert-migrations:
     description: Revert the last migration.
+    parameters:
+      circleciworkflow_id:
+        type: string
     steps:
       - run:
           name: Revert migrations
           when: on_fail
           working_directory: ./backend
           command: |
-            MIG_STATUS=$(curl -k https://kvdb.io/3et7Wetpw1giChvRWz9DmG/MIGRATION_STATUS_$\{CIRCLE_WORKFLOW_ID:0:7\})
+            MIG_STATUS=$(curl -k https://kvdb.io/3et7Wetpw1giChvRWz9DmG/MIGRATION_STATUS_${CIRCLE_WORKFLOW_ID:0:7})
             echo $MIG_STATUS
             if [[ "$MIG_STATUS" == "1" ]]
             then
@@ -182,8 +188,8 @@ jobs:
           root: .
           paths:
             - .circleci/ansible/inventory.txt
-      - destroy-environment
-          
+      - destroy-environment:
+          circleciworkflow_id: ${CIRCLE_WORKFLOW_ID:0:7}
 
   configure-infrastructure:
     docker:
@@ -208,8 +214,8 @@ jobs:
             ls -la
             cat inventory.txt
             ansible-playbook -i inventory.txt configure-server.yml
-      - destroy-environment
-          
+      - destroy-environment:
+          circleciworkflow_id: ${CIRCLE_WORKFLOW_ID:0:7}
 
   run-migrations:
     docker:
@@ -218,6 +224,14 @@ jobs:
       - checkout
       - attach_workspace:
           at: .
+      - run:
+          name: Install AWS CLI dependencies
+          working_directory: /tmp
+          command: |
+            sudo apt-get update && sudo apt-get install -yy less
+            curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+            unzip awscliv2.zip
+            sudo ./aws/install
       - run:
           name: Run migrations
           working_directory: ./backend
@@ -236,8 +250,8 @@ jobs:
               curl https://kvdb.io/3et7Wetpw1giChvRWz9DmG/MIGRATION_STATUS_${CIRCLE_WORKFLOW_ID:0:7} -d '0'
             fi
             echo "WorkflowID=${CIRCLE_WORKFLOW_ID:0:7}"
-      - destroy-environment
-           
+      - destroy-environment:
+          circleciworkflow_id: ${CIRCLE_WORKFLOW_ID:0:7} 
 
   deploy-frontend:
     docker:
@@ -267,14 +281,16 @@ jobs:
           name: Deploy frontend objects to S3
           working_directory: ./frontend
           command: |
-            ls -l
+            ls
             aws s3 cp ./dist "s3://udapeople-${CIRCLE_WORKFLOW_ID:0:7}" --recursive
       - persist_to_workspace:
           root: .
           paths:
             - frontend/dist
-      - destroy-environment
-      - revert-migrations
+      - destroy-environment:
+          circleciworkflow_id: ${CIRCLE_WORKFLOW_ID:0:7}
+      - revert-migrations:
+          circleciworkflow_id: ${CIRCLE_WORKFLOW_ID:0:7}
 
 workflows:
   default:
