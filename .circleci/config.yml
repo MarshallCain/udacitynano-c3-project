@@ -3,26 +3,20 @@ version: 2.1
 commands:
   destroy-environment:
     description: Destroy back-end and front-end cloudformation stacks given a workflow ID.
-    parameters:
-      circleciworkflow_id:
-        type: string 
     steps:
       - run:
           name: Destroy backend environment
           when: on_fail
           command: |
-            aws cloudformation delete-stack --stack-name udapeople-backend-<< parameters.circleciworkflow_id >>
+            aws cloudformation delete-stack --stack-name udapeople-backend-${CIRCLE_WORKFLOW_ID:0:7}
       - run:
           name: Destroy frontend environment
           when: on_fail
           command: |
-            aws s3 rm s3://udapeople-<< parameters.circleciworkflow_id >> --recursive
-            aws cloudformation delete-stack --stack-name udapeople-frontend-<< parameters.circleciworkflow_id >>
+            aws s3 rm s3://udapeople-${CIRCLE_WORKFLOW_ID:0:7} --recursive
+            aws cloudformation delete-stack --stack-name udapeople-frontend-${CIRCLE_WORKFLOW_ID:0:7}
   revert-migrations:
     description: Revert the last migration.
-    parameters:
-      circleciworkflow_id:
-        type: string
     steps:
       - run:
           name: Revert migrations
@@ -188,8 +182,8 @@ jobs:
           root: .
           paths:
             - .circleci/ansible/inventory.txt
-      - destroy-environment:
-          circleciworkflow_id: ${CIRCLE_WORKFLOW_ID:0:7}
+      - destroy-environment
+          
 
   configure-infrastructure:
     docker:
@@ -214,8 +208,8 @@ jobs:
             ls -la
             cat inventory.txt
             ansible-playbook -i inventory.txt configure-server.yml
-      - destroy-environment:
-          circleciworkflow_id: ${CIRCLE_WORKFLOW_ID:0:7}
+      - destroy-environment
+          
 
   run-migrations:
     docker:
@@ -236,14 +230,14 @@ jobs:
             if grep -q "has been executed successfully" migration_status.txt
             then
               echo "DB migration successful."
-              curl https://kvdb.io/3et7Wetpw1giChvRWz9DmG/MIGRATION_STATUS_$\{CIRCLE_WORKFLOW_ID:0:7\} -d '1'
+              curl https://kvdb.io/3et7Wetpw1giChvRWz9DmG/MIGRATION_STATUS_${CIRCLE_WORKFLOW_ID:0:7} -d '1'
             else
               echo "DB migration failed, please verify DB setup."
-              curl https://kvdb.io/3et7Wetpw1giChvRWz9DmG/MIGRATION_STATUS_$\{CIRCLE_WORKFLOW_ID:0:7\} -d '0'
+              curl https://kvdb.io/3et7Wetpw1giChvRWz9DmG/MIGRATION_STATUS_${CIRCLE_WORKFLOW_ID:0:7} -d '0'
             fi
             echo "WorkflowID=${CIRCLE_WORKFLOW_ID:0:7}"
-      - destroy-environment:
-          circleciworkflow_id: ${CIRCLE_WORKFLOW_ID:0:7} 
+      - destroy-environment
+           
 
   deploy-frontend:
     docker:
@@ -279,10 +273,8 @@ jobs:
           root: .
           paths:
             - frontend/dist
-      - destroy-environment:
-          circleciworkflow_id: ${CIRCLE_WORKFLOW_ID:0:7}
-      - revert-migrations:
-          circleciworkflow_id: ${CIRCLE_WORKFLOW_ID:0:7}
+      - destroy-environment
+      - revert-migrations
 
 workflows:
   default:
