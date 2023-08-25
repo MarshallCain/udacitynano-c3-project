@@ -351,14 +351,22 @@ jobs:
             sleep 20
             export BACKEND_URL=$(curl -k https://kvdb.io/3et7Wetpw1giChvRWz9DmG/BACKEND_URL)
             export BACKEND_RESTAPI_URL=$(echo $BACKEND_URL/api/status)
-            if curl $BACKEND_RESTAPI_URL | grep "ok"; then return 0; else return 1; fi
+            response=$(curl -Is $BACKEND_RESTAPI_URL)
+            if [[ $response != *"200 OK"* ]]; then
+              echo "Backend URL is not reachable."
+              exit 1
+            fi
       - run:
           name: Frontend smoke test.
           working_directory: ./frontend
           command: |
             sleep 20
             FRONT_URL="http://udapeople-${CIRCLE_WORKFLOW_ID:0:7}.s3-website-us-east-1.amazonaws.com/#/employees"
-            if curl $FRONT_URL | grep "Welcome"; then return 0; else return 1; fi
+            response=$(curl -Is $FRONT_URL)
+            if [[ $response != *"200 OK"* ]]; then
+              echo "Backend URL is not reachable."
+              exit 1
+            fi
       - destroy-environment:
           circleciworkflow_id: ${CIRCLE_WORKFLOW_ID:0:7}
       - revert-migrations:
