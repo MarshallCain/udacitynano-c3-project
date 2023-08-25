@@ -35,6 +35,7 @@ commands:
             then
               pwd
               ls -la
+              npm install
               npm run migrations:revert
             fi
 
@@ -330,17 +331,19 @@ jobs:
 
   smoke-test:
     docker:
-      - image: python:3.11-alpine3.17
+      - image: circleci/node:13.8.0
     steps:
       - checkout
       - attach_workspace:
           at: .
       - run:
-          name: Install dependencies
+          name: Install AWS CLI dependencies
           working_directory: /tmp
           command: |
-            apk add --update curl nodejs npm
-            pip install awscli
+            sudo apt-get update && sudo apt-get install -yy less
+            curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+            unzip awscliv2.zip
+            sudo ./aws/install
       - run:
           name: Backend smoke test.
           working_directory: ./backend
