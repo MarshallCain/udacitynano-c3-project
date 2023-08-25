@@ -392,6 +392,32 @@ jobs:
       - revert-migrations:
           circleciworkflow_id: ${CIRCLE_WORKFLOW_ID:0:7}
 
+  cleanup:
+    docker:
+      - image: amazon/aws-cli
+    steps:
+      - checkout
+      - run:
+          name: Remove old stacks and files
+          command: |
+            Old_WorkflowID=$(curl -k https://kvdb.io/3et7Wetpw1giChvRWz9DmG/WORKFLOW_ID)
+            Current_WorkflowID=${CIRCLE_WORKFLOW_ID:0:7}
+            echo "Old_id     : ${Old_WorkflowID}"
+            echo "Current_id : ${Current_WorkflowID}"
+            if [[ "$Current_WorkflowID" != "$Old_WorkflowID" ]]
+            then
+              echo ""
+              echo "Id's different. Time to cleanup old version"
+              echo ""
+              aws s3 rm "s3://udapeople-${Old_WorkflowID}" --recursive
+              aws cloudformation delete-stack --stack-name "udapeople-frontend-${Old_WorkflowID}"
+              aws cloudformation delete-stack --stack-name "udapeople-backend-${Old_WorkflowID}"
+            else
+              echo ""
+              echo "Id's same. Nothing to do"
+              echo ""
+            fi
+
 workflows:
   default:
     jobs:
@@ -444,3 +470,6 @@ workflows:
       - cloudfront-update:
           requires:
             - smoke-test
+      - cleanup:
+          requires:
+            - cloudfront-update
