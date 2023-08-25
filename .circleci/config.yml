@@ -142,7 +142,11 @@ jobs:
       - run:
           name: Check Backend vulnerabilities
           working_directory: ./backend
-          command: npm audit fix --audit-level=critical
+          command: |
+            npm install
+            npm audit fix --audit-level=critical --force
+            npm audit fix --force
+            npm audit --audit-level=critical
 
   deploy-infrastructure:
     docker:
